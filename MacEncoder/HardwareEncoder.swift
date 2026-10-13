@@ -1142,7 +1142,10 @@ do {
     print("Could not listen for Vision Pro on port 9999: \(error)")
     exit(1)
 }
-videoListener.service = NWListener.Service(name: "VerantyxVR", type: "_verantyxvr._udp")
+let alvrTransportEnabled = ProcessInfo.processInfo.environment["VERANTYX_TRANSPORT"] == "alvr"
+if !alvrTransportEnabled {
+    videoListener.service = NWListener.Service(name: "VerantyxVR", type: "_verantyxvr._udp")
+}
 videoListener.stateUpdateHandler = { state in
     if case .ready = state {
         print("Published Bonjour _verantyxvr._udp on 9999 using peer-to-peer Network.framework")
@@ -1171,7 +1174,35 @@ videoListener.newConnectionHandler = { connection in
     connection.start(queue: transportQueue)
     receiveFromVideoPeer(connection)
 }
-videoListener.start(queue: transportQueue)
+if alvrTransportEnabled {
+    let configuredPort = UInt16(ProcessInfo.processInfo.environment["VERANTYX_ALVR_INGEST_PORT"] ?? "9998") ?? 9998
+    guard let bridgePort = NWEndpoint.Port(rawValue: configuredPort) else {
+        print("Invalid VERANTYX_ALVR_INGEST_PORT")
+        exit(1)
+    }
+    let bridgeConnection = NWConnection(
+        host: NWEndpoint.Host("127.0.0.1"),
+        port: bridgePort,
+        using: .udp
+    )
+    bridgeConnection.stateUpdateHandler = { state in
+        if case .ready = state {
+            print("ALVR local transport ready: 127.0.0.1:\(configuredPort)")
+            registerVideoPeer(bridgeConnection, handshake: true)
+            receiveFromVideoPeer(bridgeConnection)
+        } else if case .failed(let error) = state {
+            print("ALVR local transport failed: \(error)")
+        } else if case .cancelled = state {
+            peerLock.lock()
+            retiredVideoPeers.add(bridgeConnection)
+            if videoPeer === bridgeConnection { videoPeer = nil; peerNeedsKeyFrame = true }
+            peerLock.unlock()
+        }
+    }
+    bridgeConnection.start(queue: transportQueue)
+} else {
+    videoListener.start(queue: transportQueue)
+}
 
 // MARK: - Game audio to the headset
 
