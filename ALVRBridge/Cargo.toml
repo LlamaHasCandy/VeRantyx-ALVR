@@ -15,5 +15,5 @@ alvr_packets = { git = "https://github.com/alvr-org/ALVR", tag = "v20.14.1", pac
 alvr_session = { git = "https://github.com/alvr-org/ALVR", tag = "v20.14.1", package = "alvr_session" }
 alvr_sockets = { git = "https://github.com/alvr-org/ALVR", tag = "v20.14.1", package = "alvr_sockets" }
 anyhow = "1"
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["derive", "env"] }
 serde_json = "1"
