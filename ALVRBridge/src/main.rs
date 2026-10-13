@@ -174,7 +174,7 @@ fn annex_b_ranges(frame: &[u8]) -> Vec<(usize, usize, usize)> {
         .iter()
         .enumerate()
         .filter_map(|(index, (start, code_len))| {
-            let nal_start = start + code_len;
+            let nal_start = *start + *code_len;
             let end = starts.get(index + 1).map_or(frame.len(), |(next, _)| *next);
             (nal_start < end).then_some((*start, nal_start, end))
         })
