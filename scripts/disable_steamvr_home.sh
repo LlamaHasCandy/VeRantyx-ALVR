@@ -13,8 +13,10 @@ CHAPERONE_FILE="${CHAPERONE_FILE:-$(dirname "$STEAMVR_SETTINGS")/chaperone_info.
 PLAY_AREA_METERS="${VERANTYX_PLAY_AREA_METERS:-3}"
 
 if [[ "$(basename "$WINEPREFIX")" != SteamVR_Prefix_*_Test ]]; then
-    echo "Refusing to modify SteamVR settings outside the test prefix: $WINEPREFIX" >&2
-    exit 1
+    if [[ -z "${CROSSOVER_BOTTLE:-}" || ! -d "$WINEPREFIX/drive_c" ]]; then
+        echo "Refusing to modify SteamVR settings outside the test prefix or selected CrossOver bottle: $WINEPREFIX" >&2
+        exit 1
+    fi
 fi
 if ! command -v python3 >/dev/null 2>&1; then
     echo "python3 is required to update SteamVR settings." >&2
