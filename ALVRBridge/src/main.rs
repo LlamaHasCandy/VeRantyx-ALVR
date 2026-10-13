@@ -720,7 +720,7 @@ mod tests {
     fn qtrk_packet_layout_matches_swift_receiver_size() {
         let packet = PoseState::default().encode_packet(&InputState::default());
         assert_eq!(packet.len(), 284);
-        assert_eq!(&packet[0..4], b"QTRK");
+        assert_eq!(&packet[0..4], &b"QTRK"[..]);
     }
 
     #[test]
@@ -731,7 +731,7 @@ mod tests {
             .ingest(&vran_fragment(7, 0, 2, b"hel"))
             .expect("second fragment should complete the frame");
         assert_eq!(frame.sequence, 7);
-        assert_eq!(frame.data, b"hello");
+        assert_eq!(frame.data.as_slice(), &b"hello"[..]);
         assert!((frame.timestamp - 1.25).abs() < f64::EPSILON);
     }
 }
