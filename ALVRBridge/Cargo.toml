@@ -1,0 +1,19 @@
+[package]
+name = "verantyx-alvr-bridge"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "ALVR 20.x transport adapter for VeRantyx's native macOS HEVC encoder"
+
+[[bin]]
+name = "verantyx-alvr-bridge"
+path = "src/main.rs"
+
+[dependencies]
+alvr_common = { git = "https://github.com/alvr-org/ALVR", tag = "v20.14.1", package = "alvr_common" }
+alvr_packets = { git = "https://github.com/alvr-org/ALVR", tag = "v20.14.1", package = "alvr_packets" }
+alvr_session = { git = "https://github.com/alvr-org/ALVR", tag = "v20.14.1", package = "alvr_session" }
+alvr_sockets = { git = "https://github.com/alvr-org/ALVR", tag = "v20.14.1", package = "alvr_sockets" }
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+serde_json = "1"
