@@ -268,6 +268,31 @@ if pgrep -f "$ENCODER" >/dev/null 2>&1; then
     pkill -KILL -f "$ENCODER" 2>/dev/null || true
     sleep 1
 fi
+ALVR_BRIDGE_PID=""
+if [[ "\${VERANTYX_TRANSPORT:-visionpro}" == "alvr" ]]; then
+    if [[ -z "\${ALVR_CLIENT_IP:-}" ]]; then
+        echo "ALVR mode requires ALVR_CLIENT_IP (the Quest 3S LAN IP)." >&2
+        exit 1
+    fi
+    bash "$REPO_ROOT/scripts/build_alvr_bridge.sh"
+    "$BUILD_DIR/verantyx-alvr-bridge" \
+        --client-ip "$ALVR_CLIENT_IP" \
+        --stream-port "\${ALVR_STREAM_PORT:-9942}" \
+        --eye-width "\${ALVR_EYE_WIDTH:-960}" \
+        --eye-height "\${ALVR_EYE_HEIGHT:-1080}" \
+        --fps "\${ALVR_FPS:-72}" \
+        --ingest-port "\${VERANTYX_ALVR_INGEST_PORT:-9998}" \
+        >"$LOG_DIR/alvr-bridge.log" 2>&1 &
+    ALVR_BRIDGE_PID=$!
+    export VERANTYX_TRANSPORT=alvr
+    # Main profile usually supplies the combined output dimensions. Default to
+    # side-by-side 1920x1080 if a custom profile didn't select a size.
+    export VERANTYX_STREAM_WIDTH="\${VERANTYX_STREAM_WIDTH:-1920}"
+    export VERANTYX_STREAM_HEIGHT="\${VERANTYX_STREAM_HEIGHT:-1080}"
+    export VERANTYX_HEVC_10BIT="\${VERANTYX_HEVC_10BIT:-0}"
+    echo "ALVR transport enabled for Quest at $ALVR_CLIENT_IP (bridge log: $LOG_DIR/alvr-bridge.log)"
+fi
+
 "$ENCODER" >"$LOG_DIR/hardware-encoder.log" 2>&1 &
 ENCODER_PID=$!
 
@@ -275,6 +300,10 @@ cleanup() {
     if kill -0 "$ENCODER_PID" 2>/dev/null; then
         kill -TERM "$ENCODER_PID" 2>/dev/null || true
         wait "$ENCODER_PID" 2>/dev/null || true
+    fi
+    if [[ -n "${ALVR_BRIDGE_PID:-}" ]] && kill -0 "$ALVR_BRIDGE_PID" 2>/dev/null; then
+        kill -TERM "$ALVR_BRIDGE_PID" 2>/dev/null || true
+        wait "$ALVR_BRIDGE_PID" 2>/dev/null || true
     fi
 }
 trap cleanup EXIT
