@@ -1010,6 +1010,110 @@ DispatchQueue.global(qos: .userInteractive).async {
 }
 
 
+// MARK: - ALVR Quest tracking/input bridge
+// Rust ALVRBridge sends a fixed-size QTRK packet to localhost:11003.
+// Layout must remain synchronized with PoseState::encode_packet in ALVRBridge/src/main.rs.
+func qtrkReadU32(_ base: UnsafeRawPointer, _ offset: Int) -> UInt32 {
+    var value: UInt32 = 0
+    memcpy(&value, base.advanced(by: offset), MemoryLayout<UInt32>.size)
+    return UInt32(littleEndian: value)
+}
+
+func qtrkReadFloat(_ base: UnsafeRawPointer, _ offset: Int) -> Float {
+    Float(bitPattern: qtrkReadU32(base, offset))
+}
+
+func qtrkReadU64(_ base: UnsafeRawPointer, _ offset: Int) -> UInt64 {
+    var value: UInt64 = 0
+    memcpy(&value, base.advanced(by: offset), MemoryLayout<UInt64>.size)
+    return UInt64(littleEndian: value)
+}
+
+func qtrkReadDouble(_ base: UnsafeRawPointer, _ offset: Int) -> Double {
+    Double(bitPattern: qtrkReadU64(base, offset))
+}
+
+DispatchQueue.global(qos: .userInteractive).async {
+    let qtrkSock = socket(AF_INET, SOCK_DGRAM, 0)
+    guard qtrkSock >= 0 else {
+        print("ALVR tracking bridge: could not create UDP socket")
+        return
+    }
+    var opt: Int32 = 1
+    setsockopt(qtrkSock, SOL_SOCKET, SO_REUSEADDR, &opt, socklen_t(MemoryLayout<Int32>.size))
+
+    var bindAddr = sockaddr_in()
+    bindAddr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+    bindAddr.sin_family = sa_family_t(AF_INET)
+    bindAddr.sin_port = in_port_t(11003).bigEndian
+    bindAddr.sin_addr.s_addr = INADDR_ANY
+    let bindResult = bind(qtrkSock, withUnsafePointer(to: &bindAddr) {
+        $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { $0 }
+    }, socklen_t(MemoryLayout<sockaddr_in>.size))
+    guard bindResult == 0 else {
+        print("ALVR tracking bridge: could not bind UDP port 11003")
+        close(qtrkSock)
+        return
+    }
+    print("ALVR tracking bridge listening on 127.0.0.1:11003")
+
+    var buffer = [UInt8](repeating: 0, count: 512)
+    while true {
+        var senderAddr = sockaddr()
+        var senderLen = socklen_t(MemoryLayout<sockaddr>.size)
+        let bytesRead = recvfrom(qtrkSock, &buffer, buffer.count, 0, &senderAddr, &senderLen)
+        guard bytesRead == 284, Array(buffer[0..<4]) == Array("QTRK".utf8) else {
+            continue
+        }
+
+        let senderAddrIn = withUnsafePointer(to: &senderAddr) {
+            $0.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { $0.pointee }
+        }
+        var sinAddr = senderAddrIn.sin_addr
+        var ipStr = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
+        inet_ntop(AF_INET, &sinAddr, &ipStr, socklen_t(INET_ADDRSTRLEN))
+        guard String(cString: ipStr) == "127.0.0.1" else { continue }
+
+        buffer.withUnsafeBytes { rawBuffer in
+            guard let base = rawBuffer.baseAddress else { return }
+            let timestamp = qtrkReadDouble(base, 4)
+
+            withSharedHandsWrite {
+                // Each 4x4 transform is already a column-major array of little-endian Float32s.
+                handsMapPtr.advanced(by: 0).copyMemory(from: base.advanced(by: 12), byteCount: 64)
+                handsMapPtr.advanced(by: 64).copyMemory(from: base.advanced(by: 76), byteCount: 64)
+                handsMapPtr.advanced(by: 128).copyMemory(from: base.advanced(by: 140), byteCount: 64)
+
+                // Motion values.
+                for i in 0..<3 {
+                    handsMapPtr.advanced(by: 220 + i * 4).storeBytes(of: qtrkReadFloat(base, 204 + i * 4), as: Float.self)
+                    handsMapPtr.advanced(by: 232 + i * 4).storeBytes(of: qtrkReadFloat(base, 216 + i * 4), as: Float.self)
+                    handsMapPtr.advanced(by: 287 + i * 4).storeBytes(of: qtrkReadFloat(base, 228 + i * 4), as: Float.self)
+                    handsMapPtr.advanced(by: 299 + i * 4).storeBytes(of: qtrkReadFloat(base, 240 + i * 4), as: Float.self)
+                }
+
+                // Analog controls and button masks.
+                handsMapPtr.advanced(by: 194).storeBytes(of: buffer[252], as: UInt8.self) // left trigger
+                handsMapPtr.advanced(by: 195).storeBytes(of: buffer[253], as: UInt8.self) // right trigger
+                handsMapPtr.advanced(by: 284).storeBytes(of: buffer[254], as: UInt8.self) // left grip
+                handsMapPtr.advanced(by: 285).storeBytes(of: buffer[255], as: UInt8.self) // right grip
+                handsMapPtr.advanced(by: 196).storeBytes(of: qtrkReadU32(base, 256), as: UInt32.self) // right buttons
+                handsMapPtr.advanced(by: 200).storeBytes(of: qtrkReadU32(base, 260), as: UInt32.self) // left buttons
+                handsMapPtr.advanced(by: 204).storeBytes(of: qtrkReadFloat(base, 264), as: Float.self) // right stick X
+                handsMapPtr.advanced(by: 208).storeBytes(of: qtrkReadFloat(base, 268), as: Float.self) // right stick Y
+                handsMapPtr.advanced(by: 212).storeBytes(of: qtrkReadFloat(base, 272), as: Float.self) // left stick X
+                handsMapPtr.advanced(by: 216).storeBytes(of: qtrkReadFloat(base, 276), as: Float.self) // left stick Y
+
+                handsMapPtr.advanced(by: 286).storeBytes(of: buffer[280], as: UInt8.self) // head tracked
+                handsMapPtr.advanced(by: 192).storeBytes(of: buffer[281], as: UInt8.self) // left tracked
+                handsMapPtr.advanced(by: 193).storeBytes(of: buffer[282], as: UInt8.self) // right tracked
+                handsMapPtr.advanced(by: 311).storeBytes(of: buffer[283], as: UInt8.self) // velocity valid
+                handsMapPtr.advanced(by: 244).storeBytes(of: timestamp, as: Double.self)
+            }
+        }
+    }
+}
+
 struct VRPosePacket {
     var magic: UInt32 // 0x45534F50 ("POSE" little endian)
     var padding: UInt32
