@@ -7,7 +7,11 @@ BUILD_DIR="$REPO_ROOT/build"
 LOG_DIR="${LOG_DIR:-$REPO_ROOT/logs}"
 
 VERANTYX_VR_DRIVE="${VERANTYX_VR_DRIVE:-$HOME/Verantyx_VR_Drive}"
-WINEPREFIX="${WINEPREFIX:-$VERANTYX_VR_DRIVE/SteamVR_Prefix_Wine11_Test}"
+if [[ -n "${CROSSOVER_BOTTLE:-}" ]]; then
+    WINEPREFIX="${WINEPREFIX:-$HOME/Library/Application Support/CrossOver/Bottles/$CROSSOVER_BOTTLE}"
+else
+    WINEPREFIX="${WINEPREFIX:-$VERANTYX_VR_DRIVE/SteamVR_Prefix_Wine11_Test}"
+fi
 WINE_BIN="${WINE_BIN:-$REPO_ROOT/VRDriver/wine_launcher.sh}"
 WINE_RUNTIME_BIN_RESOLVED="${WINE_RUNTIME_BIN:-$VERANTYX_VR_DRIVE/Beer/wine/WineStaging.app/Contents/Resources/wine/bin/wine}"
 DXVK_SOURCE_DIR="${DXVK_SOURCE_DIR:-$VERANTYX_VR_DRIVE/Beer/dxvk/dxvk-macOS-async-v1.10.3-20230507-repack/x64}"
