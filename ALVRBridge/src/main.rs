@@ -457,11 +457,11 @@ fn configure_alvr_session(args: &Args) -> Result<SessionConfig> {
     json["session_settings"]["connection"]["stream_port"] = serde_json::json!(args.stream_port);
     session.merge_from_json(&json)?;
 
-    session.steamvr_hmd_init_config.eye_resolution_width = args.eye_width;
-    session.steamvr_hmd_init_config.eye_resolution_height = args.eye_height;
-    session.steamvr_hmd_init_config.target_eye_resolution_width = args.eye_width;
-    session.steamvr_hmd_init_config.target_eye_resolution_height = args.eye_height;
-    session.steamvr_hmd_init_config.refresh_rate = args.fps.round() as u32;
+    session.openvr_config.eye_resolution_width = args.eye_width;
+    session.openvr_config.eye_resolution_height = args.eye_height;
+    session.openvr_config.target_eye_resolution_width = args.eye_width;
+    session.openvr_config.target_eye_resolution_height = args.eye_height;
+    session.openvr_config.refresh_rate = args.fps.round() as u32;
     Ok(session)
 }
 
@@ -492,7 +492,7 @@ fn run(args: Args) -> Result<()> {
     let (mut proto_socket, quest_ip) = connect_to_quest(args.client_ip)?;
     let result: ClientConnectionResult = proto_socket
         .recv(Duration::from_secs(3))
-        .context("waiting for ALVR client capabilities")?;
+        .map_err(|error| anyhow::anyhow!("waiting for ALVR client capabilities: {error}"))?;
 
     let (client_protocol, client_name, capabilities) = match result {
         ClientConnectionResult::ConnectionAccepted {
@@ -544,7 +544,7 @@ fn run(args: Args) -> Result<()> {
         proto_socket.split(Duration::from_millis(5))?;
     control_sender.send(&ServerControlPacket::StartStream)?;
 
-    match control_receiver.recv(Duration::from_secs(3))? {
+    match control_receiver.recv(Duration::from_secs(3)).map_err(|error| anyhow::anyhow!("waiting for Quest StreamReady: {error}"))? {
         ClientControlPacket::StreamReady => println!("ALVR: Quest stream socket is ready."),
         _ => bail!("Quest sent an unexpected packet instead of StreamReady"),
     }
@@ -558,7 +558,7 @@ fn run(args: Args) -> Result<()> {
         settings.connection.server_send_buffer_bytes,
         settings.connection.server_recv_buffer_bytes,
         settings.connection.packet_size.max(1400) as usize,
-    )?;
+    ).map_err(|error| anyhow::anyhow!("connecting ALVR stream socket: {error}"))?;
     let mut video_sender = stream_socket.request_stream::<VideoPacketHeader>(VIDEO);
     let mut tracking_receiver = stream_socket.subscribe_to_stream::<Tracking>(TRACKING, 4);
     let stream_epoch = Instant::now();
