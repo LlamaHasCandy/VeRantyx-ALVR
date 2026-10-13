@@ -316,6 +316,12 @@ if ! kill -0 "$ENCODER_PID" 2>/dev/null; then
     exit 1
 fi
 
+if [[ -n "${ALVR_BRIDGE_PID:-}" ]] && ! kill -0 "$ALVR_BRIDGE_PID" 2>/dev/null; then
+    echo "The ALVR bridge exited during startup. See $LOG_DIR/alvr-bridge.log" >&2
+    tail -40 "$LOG_DIR/alvr-bridge.log" >&2 || true
+    exit 1
+fi
+
 steam_connection_state() {
     [[ -f "$STEAM_CONNECTION_LOG" ]] || return 1
     grep -aEo 'Logged On|Logged Off' "$STEAM_CONNECTION_LOG" 2>/dev/null | tail -1
