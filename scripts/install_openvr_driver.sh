@@ -15,6 +15,25 @@ if [[ ! -f "$SOURCE_DLL" ]]; then
     echo "Run ./scripts/build_openvr_driver.sh first." >&2
     exit 1
 fi
+
+# Create the project-owned external driver manifest in a newly selected bottle.
+# The setup script normally does this for the Wine prefix; CrossOver bottles
+# are prepared separately and reach this installer without that setup step.
+EXPECTED_DRIVER_DIR="$WINEPREFIX/drive_c/vr_driver/verantyx/bin/win64"
+if [[ "$DRIVER_DIR" == "$EXPECTED_DRIVER_DIR" ]]; then
+    DRIVER_ROOT="$(dirname "$(dirname "$DRIVER_DIR")")"
+    mkdir -p "$DRIVER_ROOT/bin/win64" "$DRIVER_ROOT/resources"
+    if [[ ! -f "$DRIVER_ROOT/driver.vrdrivermanifest" ]]; then
+        cat >"$DRIVER_ROOT/driver.vrdrivermanifest" <<'EOF'
+{
+    "name": "verantyx",
+    "version": "1.0",
+    "alwaysActivate": true
+}
+EOF
+        echo "Created SteamVR driver manifest: $DRIVER_ROOT/driver.vrdrivermanifest"
+    fi
+fi
 if [[ ! -f "$DRIVER_DIR/../driver.vrdrivermanifest" && ! -f "$DRIVER_DIR/../../driver.vrdrivermanifest" ]]; then
     echo "SteamVR driver manifest was not found next to the configured driver: $DRIVER_DIR" >&2
     echo "Set VR_DRIVER_DIR to the bin/win64 directory registered with SteamVR." >&2
