@@ -1,9 +1,12 @@
 use anyhow::{bail, Context, Result};
-use alvr_common::{glam::UVec2, protocol_id_u64};
+use alvr_common::{
+    glam::UVec2, protocol_id_u64, ButtonInfo, DeviceMotion, BUTTON_INFO, HAND_LEFT_ID,
+    HAND_RIGHT_ID, HEAD_ID,
+};
 use alvr_packets::{
     decode_video_streaming_capabilities, encode_stream_config, ClientConnectionResult,
-    ClientControlPacket, DecoderInitializationConfig, NegotiatedStreamingConfig,
-    ServerControlPacket, Tracking, VideoPacketHeader, TRACKING, VIDEO,
+    ButtonEntry, ButtonValue, ClientControlPacket, DecoderInitializationConfig,
+    NegotiatedStreamingConfig, ServerControlPacket, Tracking, VideoPacketHeader, TRACKING, VIDEO,
 };
 use alvr_session::{CodecType, SessionConfig, SocketProtocol};
 use alvr_sockets::{PeerType, ProtoControlSocket, StreamSocketBuilder};
@@ -203,6 +206,245 @@ fn send_keyframe_request(socket: &UdpSocket, encoder_peer: Option<SocketAddr>) {
     }
 }
 
+#[derive(Clone)]
+struct InputState {
+    left_trigger: f32,
+    right_trigger: f32,
+    left_grip: f32,
+    right_grip: f32,
+    left_stick_x: f32,
+    left_stick_y: f32,
+    right_stick_x: f32,
+    right_stick_y: f32,
+    left_buttons: u32,
+    right_buttons: u32,
+}
+
+impl Default for InputState {
+    fn default() -> Self {
+        Self {
+            left_trigger: 0.0,
+            right_trigger: 0.0,
+            left_grip: 0.0,
+            right_grip: 0.0,
+            left_stick_x: 0.0,
+            left_stick_y: 0.0,
+            right_stick_x: 0.0,
+            right_stick_y: 0.0,
+            left_buttons: 0,
+            right_buttons: 0,
+        }
+    }
+}
+
+impl InputState {
+    fn apply(&mut self, entries: &[ButtonEntry]) {
+        for entry in entries {
+            let Some(ButtonInfo { path, device_id, .. }) = BUTTON_INFO.get(&entry.path_id) else {
+                continue;
+            };
+            let is_left = *device_id == *HAND_LEFT_ID;
+            let is_right = *device_id == *HAND_RIGHT_ID;
+            if !is_left && !is_right {
+                continue;
+            }
+            match (path.rsplit("/input/").next().unwrap_or(""), entry.value) {
+                ("trigger/value", ButtonValue::Scalar(value)) => {
+                    if is_left { self.left_trigger = value.clamp(0.0, 1.0); }
+                    else { self.right_trigger = value.clamp(0.0, 1.0); }
+                }
+                ("squeeze/value", ButtonValue::Scalar(value)) => {
+                    if is_left { self.left_grip = value.clamp(0.0, 1.0); }
+                    else { self.right_grip = value.clamp(0.0, 1.0); }
+                }
+                ("thumbstick/x", ButtonValue::Scalar(value)) => {
+                    if is_left { self.left_stick_x = value.clamp(-1.0, 1.0); }
+                    else { self.right_stick_x = value.clamp(-1.0, 1.0); }
+                }
+                ("thumbstick/y", ButtonValue::Scalar(value)) => {
+                    if is_left { self.left_stick_y = value.clamp(-1.0, 1.0); }
+                    else { self.right_stick_y = value.clamp(-1.0, 1.0); }
+                }
+                (path, ButtonValue::Binary(value)) => {
+                    let bit = if is_left {
+                        match path {
+                            "x/click" => Some(1u32 << 8),
+                            "y/click" => Some(1u32 << 9),
+                            "thumbstick/click" => Some(1u32 << 10),
+                            "thumbstick/touch" => Some(1u32 << 11),
+                            "menu/click" | "system/click" => Some(1u32 << 12),
+                            _ => None,
+                        }
+                    } else {
+                        match path {
+                            "a/click" => Some(1u32),
+                            "b/click" => Some(1u32 << 1),
+                            "thumbstick/click" => Some(1u32 << 2),
+                            "thumbstick/touch" => Some(1u32 << 3),
+                            "menu/click" | "system/click" => Some(1u32 << 4),
+                            _ => None,
+                        }
+                    };
+                    if let Some(bit) = bit {
+                        let buttons = if is_left { &mut self.left_buttons } else { &mut self.right_buttons };
+                        if value { *buttons |= bit; } else { *buttons &= !bit; }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+#[derive(Clone)]
+struct PoseState {
+    timestamp: f64,
+    head: [f32; 16],
+    left: [f32; 16],
+    right: [f32; 16],
+    left_linear: [f32; 3],
+    right_linear: [f32; 3],
+    left_angular: [f32; 3],
+    right_angular: [f32; 3],
+    head_tracked: bool,
+    left_tracked: bool,
+    right_tracked: bool,
+    velocity_valid: bool,
+}
+
+impl Default for PoseState {
+    fn default() -> Self {
+        Self {
+            timestamp: 0.0,
+            head: identity_matrix(),
+            left: identity_matrix(),
+            right: identity_matrix(),
+            left_linear: [0.0; 3],
+            right_linear: [0.0; 3],
+            left_angular: [0.0; 3],
+            right_angular: [0.0; 3],
+            head_tracked: false,
+            left_tracked: false,
+            right_tracked: false,
+            velocity_valid: false,
+        }
+    }
+}
+
+fn identity_matrix() -> [f32; 16] {
+    [
+        1.0, 0.0, 0.0, 0.0,
+        0.0, 1.0, 0.0, 0.0,
+        0.0, 0.0, 1.0, 0.0,
+        0.0, 0.0, 0.0, 1.0,
+    ]
+}
+
+fn motion_for(tracking: &Tracking, device_id: u64) -> Option<DeviceMotion> {
+    tracking.device_motions.iter().find_map(|(id, motion)| {
+        (*id == device_id).then_some(*motion)
+    })
+}
+
+fn transform_for(motion: DeviceMotion) -> [f32; 16] {
+    let p = motion.pose.position;
+    let q = motion.pose.orientation;
+    let (x, y, z, w) = (q.x, q.y, q.z, q.w);
+    [
+        1.0 - 2.0 * (y * y + z * z),
+        2.0 * (x * y + z * w),
+        2.0 * (x * z - y * w),
+        0.0,
+        2.0 * (x * y - z * w),
+        1.0 - 2.0 * (x * x + z * z),
+        2.0 * (y * z + x * w),
+        0.0,
+        2.0 * (x * z + y * w),
+        2.0 * (y * z - x * w),
+        1.0 - 2.0 * (x * x + y * y),
+        0.0,
+        p.x, p.y, p.z, 1.0,
+    ]
+}
+
+impl PoseState {
+    fn update(&mut self, tracking: &Tracking) {
+        self.timestamp = tracking.target_timestamp.as_secs_f64();
+        let head = motion_for(tracking, *HEAD_ID);
+        let left = motion_for(tracking, *HAND_LEFT_ID);
+        let right = motion_for(tracking, *HAND_RIGHT_ID);
+
+        self.head_tracked = head.is_some();
+        self.left_tracked = left.is_some();
+        self.right_tracked = right.is_some();
+
+        if let Some(motion) = head {
+            self.head = transform_for(motion);
+        }
+        if let Some(motion) = left {
+            self.left = transform_for(motion);
+            self.left_linear = [motion.linear_velocity.x, motion.linear_velocity.y, motion.linear_velocity.z];
+            self.left_angular = [motion.angular_velocity.x, motion.angular_velocity.y, motion.angular_velocity.z];
+        } else {
+            self.left_linear = [0.0; 3];
+            self.left_angular = [0.0; 3];
+        }
+        if let Some(motion) = right {
+            self.right = transform_for(motion);
+            self.right_linear = [motion.linear_velocity.x, motion.linear_velocity.y, motion.linear_velocity.z];
+            self.right_angular = [motion.angular_velocity.x, motion.angular_velocity.y, motion.angular_velocity.z];
+        } else {
+            self.right_linear = [0.0; 3];
+            self.right_angular = [0.0; 3];
+        }
+        self.velocity_valid = left.is_some() || right.is_some();
+    }
+
+    fn encode_packet(&self, inputs: &InputState) -> Vec<u8> {
+        // Fixed little-endian "QTRK" packet consumed by HardwareEncoder.swift.
+        // 4-byte magic + 8-byte timestamp + 3 matrices + velocities + inputs + tracking flags.
+        let mut bytes = Vec::with_capacity(284);
+        bytes.extend_from_slice(b"QTRK");
+        bytes.extend_from_slice(&self.timestamp.to_le_bytes());
+        for matrix in [&self.head, &self.left, &self.right] {
+            for value in matrix {
+                bytes.extend_from_slice(&value.to_le_bytes());
+            }
+        }
+        for velocity in [&self.left_linear, &self.right_linear, &self.left_angular, &self.right_angular] {
+            for value in velocity {
+                bytes.extend_from_slice(&value.to_le_bytes());
+            }
+        }
+        bytes.extend_from_slice(&[
+            (inputs.left_trigger * 255.0).round() as u8,
+            (inputs.right_trigger * 255.0).round() as u8,
+            (inputs.left_grip * 255.0).round() as u8,
+            (inputs.right_grip * 255.0).round() as u8,
+        ]);
+        bytes.extend_from_slice(&inputs.right_buttons.to_le_bytes());
+        bytes.extend_from_slice(&inputs.left_buttons.to_le_bytes());
+        for value in [
+            inputs.right_stick_x, inputs.right_stick_y,
+            inputs.left_stick_x, inputs.left_stick_y,
+        ] {
+            bytes.extend_from_slice(&value.to_le_bytes());
+        }
+        bytes.extend_from_slice(&[
+            u8::from(self.head_tracked),
+            u8::from(self.left_tracked),
+            u8::from(self.right_tracked),
+            u8::from(self.velocity_valid),
+        ]);
+        bytes
+    }
+}
+
+fn publish_pose_update(socket: &UdpSocket, pose: &PoseState, inputs: &InputState) {
+    let packet = pose.encode_packet(inputs);
+    let _ = socket.send_to(&packet, ("127.0.0.1", 11_003));
+}
+
 fn configure_alvr_session(args: &Args) -> Result<SessionConfig> {
     let mut session = SessionConfig::default();
 
@@ -332,6 +574,8 @@ fn run(args: Args) -> Result<()> {
     let mut encoder_peer: Option<SocketAddr> = None;
     let mut decoder_config_sent = false;
     let mut last_keepalive = Instant::now();
+    let mut latest_pose = PoseState::default();
+    let mut latest_inputs = InputState::default();
     let mut last_stats = Instant::now();
     let mut frames_at_last_stats = 0u64;
     let mut sent_frames = 0u64;
@@ -400,13 +644,21 @@ fn run(args: Args) -> Result<()> {
         // Poll Quest-to-host data. The tracking stream is parsed to verify the
         // return path; shared-memory pose injection is a separate follow-up.
         let _ = stream_socket.recv();
-        while let Ok(_tracking) = tracking_receiver.recv(Duration::from_millis(1)) {
+        while let Ok(tracking) = tracking_receiver.recv(Duration::from_millis(1)) {
+            if let Ok((tracking, _payload)) = tracking.get() {
+                latest_pose.update(&tracking);
+                publish_pose_update(&ingest_socket, &latest_pose, &latest_inputs);
+            }
             tracking_packets += 1;
         }
 
         if let Ok(packet) = control_receiver.recv(Duration::from_millis(1)) {
             match packet {
                 ClientControlPacket::RequestIdr => send_keyframe_request(&ingest_socket, encoder_peer),
+                ClientControlPacket::Buttons(entries) => {
+                    latest_inputs.apply(&entries);
+                    publish_pose_update(&ingest_socket, &latest_pose, &latest_inputs);
+                }
                 ClientControlPacket::KeepAlive
                 | ClientControlPacket::Buttons(_)
                 | ClientControlPacket::Battery(_)
