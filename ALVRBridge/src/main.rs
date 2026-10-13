@@ -697,3 +697,41 @@ fn run(args: Args) -> Result<()> {
 fn main() -> Result<()> {
     run(Args::parse())
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn vran_fragment(sequence: u32, index: u32, count: u32, payload: &[u8]) -> Vec<u8> {
+        let mut packet = vec![0u8; VRAN_HEADER_BYTES];
+        packet[0..4].copy_from_slice(&VRAN_MAGIC.to_le_bytes());
+        packet[4..8].copy_from_slice(&sequence.to_le_bytes());
+        packet[8..12].copy_from_slice(&index.to_le_bytes());
+        packet[12..16].copy_from_slice(&count.to_le_bytes());
+        packet[16..20].copy_from_slice(&((index as usize * 1100) as u32).to_le_bytes());
+        packet[20..24].copy_from_slice(&(payload.len() as u32).to_le_bytes());
+        packet[24..32].copy_from_slice(&1.25f64.to_le_bytes());
+        packet.extend_from_slice(payload);
+        packet
+    }
+
+    #[test]
+    fn qtrk_packet_layout_matches_swift_receiver_size() {
+        let packet = PoseState::default().encode_packet(&InputState::default());
+        assert_eq!(packet.len(), 284);
+        assert_eq!(&packet[0..4], b"QTRK");
+    }
+
+    #[test]
+    fn reassembles_vran_fragments_even_when_out_of_order() {
+        let mut assembler = FrameAssembler::default();
+        assert!(assembler.ingest(&vran_fragment(7, 1, 2, b"lo")).is_none());
+        let frame = assembler
+            .ingest(&vran_fragment(7, 0, 2, b"hel"))
+            .expect("second fragment should complete the frame");
+        assert_eq!(frame.sequence, 7);
+        assert_eq!(frame.data, b"hello");
+        assert!((frame.timestamp - 1.25).abs() < f64::EPSILON);
+    }
+}
