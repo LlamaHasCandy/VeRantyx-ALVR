@@ -48,11 +48,11 @@ The ALVR branch targets ALVR 20.14.1's Quest protocol and default ports. A proto
 
 - The bridge compiled successfully and its two Rust unit tests passed on the user's Mac. End-to-end headset streaming, stereo layout, and tracking still need live validation.
 - The existing encoder produces a side-by-side HEVC frame. This bridge advertises 960×1080 per eye by default; the Quest's decoder/display behavior still needs a live test.
-- The QTRK return path for Quest head/controller poses and buttons has been added, but its transform conventions and runtime behavior have **not been compiled or validated live**. Treat tracking/controller support as experimental until tested in-game.
+- The QTRK return path for Quest head/controller poses and buttons compiled on the user's Mac, but its transform conventions and end-to-end behavior have **not been validated live**. Treat tracking/controller support as experimental until tested in-game.
 - Game audio and haptics are not yet bridged to ALVR streams. The current custom audio/frustum/status datagrams are ignored by the ALVR relay. The bridge also currently falls back to VeRantyx's stored/default eye frustum rather than consuming ALVR's live `ViewsConfig`.
 - ALVR v20.14.1 is pinned because the existing Quest client must match the bridge protocol. This does not claim compatibility with ALVR nightly/21.x clients.
 
-This is an initial integration, not a finished replacement for ALVR. Next steps are compile fixes (if any), on-Mac packet testing, validating stereo layout and poses in SteamVR, then adding audio and haptics streams.
+This is an initial integration, not a finished replacement for ALVR. Next steps are validating the CrossOver runner, packet delivery, stereo layout, and poses in SteamVR, then adding audio and haptics streams.
 
 ## CrossOver bottles (experimental)
 
