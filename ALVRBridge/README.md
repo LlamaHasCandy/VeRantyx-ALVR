@@ -42,11 +42,11 @@ Replace `192.168.1.123` with the Quest's actual IP. Optional configuration:
 - `ALVR_FPS=72`
 - `VERANTYX_ALVR_INGEST_PORT=9998`
 
-The ALVR branch targets ALVR 20.14.1's Quest protocol and default ports. A protocol mismatch is reported instead of silently trying to decode incompatible packets. The outer VeRantyx launcher still has its original Wine 11 defaults; CrossOver's bottle/runner and graphics backend must be selected explicitly and are not verified by this integration.
+The ALVR branch targets ALVR 20.14.1's Quest protocol and default ports. A protocol mismatch is reported instead of silently trying to decode incompatible packets. The launcher defaults to the project's Wine 11 prefix. Set `CROSSOVER_BOTTLE` to use the experimental CrossOver runner; CrossOver's graphics backend and live headset path have not been validated.
 
 ## Explicit limitations of this first pass
 
-- **Not compiled or end-to-end tested yet.** The current development environment cannot fetch the source dependencies directly to run `cargo test`; run the test command above on the Mac before trying the headset.
+- The bridge compiled successfully and its two Rust unit tests passed on the user's Mac. End-to-end headset streaming, stereo layout, and tracking still need live validation.
 - The existing encoder produces a side-by-side HEVC frame. This bridge advertises 960×1080 per eye by default; the Quest's decoder/display behavior still needs a live test.
 - The QTRK return path for Quest head/controller poses and buttons has been added, but its transform conventions and runtime behavior have **not been compiled or validated live**. Treat tracking/controller support as experimental until tested in-game.
 - Game audio and haptics are not yet bridged to ALVR streams. The current custom audio/frustum/status datagrams are ignored by the ALVR relay. The bridge also currently falls back to VeRantyx's stored/default eye frustum rather than consuming ALVR's live `ViewsConfig`.
@@ -74,7 +74,6 @@ CROSSOVER_BOTTLE="Your Bottle Name" \
 CROSSOVER_WINE_BIN="/Applications/CrossOver.app/Contents/SharedSupport/CrossOver/bin/wine" \
 ALVR_CLIENT_IP=192.168.1.123 \
 VERANTYX_TRANSPORT=alvr \
-WAIT_FOR_VISION_PRO_TRACKING=0 \
 bash scripts/launch_vision_pro_vr.sh
 ```
 
@@ -82,5 +81,6 @@ If CrossOver is installed outside `/Applications`, set
 `CROSSOVER_WINE_BIN` to its `Contents/SharedSupport/CrossOver/bin/wine`.
 Set `WINEPREFIX` explicitly if the bottle is stored in a custom location.
 The launcher uses CodeWeavers' `wine --bottle <name> --cx-app <executable>`
-command interface through `VRDriver/wine_launcher.sh`.
+command interface through `VRDriver/wine_launcher.sh`. ALVR mode skips the
+Vision Pro pose wait automatically because Quest tracking arrives through ALVR.
 
