@@ -14,7 +14,7 @@ SteamVR game
    -> Quest ALVR client
 ```
 
-The bridge uses ALVR's versioned `alvr_packets`, `alvr_session`, and `alvr_sockets` crates rather than hand-rolling the wire format. It performs the control handshake, negotiates an HEVC session, starts ALVR's UDP stream, sends decoder configuration, reassembles VeRantyx's local `VRAN` packets, and forwards completed frames as ALVR video packets. ALVR client IDR requests are forwarded back to the encoder.
+The bridge uses ALVR's versioned `alvr_packets`, `alvr_session`, and `alvr_sockets` crates rather than hand-rolling the wire format. It performs the control handshake, negotiates an HEVC session, starts ALVR's UDP stream, sends decoder configuration, reassembles VeRantyx's local `VRAN` packets, and forwards completed frames as ALVR video packets. ALVR client IDR requests are forwarded back to the encoder. Quest tracking and controller input are translated into a small localhost `QTRK` packet, which the native Swift process writes into VeRantyx's existing shared `SharedHands` structure for the SteamVR driver.
 
 ## Build
 
@@ -48,8 +48,8 @@ The ALVR branch targets ALVR 20.14.1's Quest protocol and default ports. A proto
 
 - **Not end-to-end tested yet.** This change was written through the GitHub API; it has not been compiled on the user's Mac.
 - The existing encoder produces a side-by-side HEVC frame. This bridge advertises 960×1080 per eye by default; the Quest's decoder/display behavior still needs a live test.
-- Quest tracking packets are received for verification, but they are not yet copied into VeRantyx's shared-memory `SharedHands` structure. Head motion/controller input will therefore **not yet drive the game correctly**.
+- The QTRK return path for Quest head/controller poses and buttons has been added, but its transform conventions and runtime behavior have **not been compiled or validated live**. Treat tracking/controller support as experimental until tested in-game.
 - Game audio and haptics are not yet bridged to ALVR streams. The current custom audio/frustum/status datagrams are ignored by the ALVR relay.
 - ALVR v20.14.1 is pinned because the existing Quest client must match the bridge protocol. This does not claim compatibility with ALVR nightly/21.x clients.
 
-The intent is to establish the real ALVR control/video transport first, then wire Quest tracking and controller state into the SteamVR driver and add ALVR audio/haptics.
+This is an initial integration, not a finished replacement for ALVR. Next steps are compile fixes (if any), on-Mac packet testing, validating stereo layout and poses in SteamVR, then adding audio and haptics streams.
