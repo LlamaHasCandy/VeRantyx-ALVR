@@ -567,7 +567,7 @@ fn run(args: Args) -> Result<()> {
         "ALVR stream ready: Quest={quest_ip}, stream port={}, eye={}x{} @ {} Hz",
         settings.connection.stream_port, args.eye_width, args.eye_height, args.fps
     );
-    println!("Tracking packets are received, but Quest poses are not yet injected into the SteamVR driver.");
+    println!("Quest tracking and controller updates are forwarded to HardwareEncoder over localhost UDP; live validation is still required.");
 
     let mut assembler = FrameAssembler::default();
     let mut datagram = [0u8; 65_535];
@@ -660,7 +660,6 @@ fn run(args: Args) -> Result<()> {
                     publish_pose_update(&ingest_socket, &latest_pose, &latest_inputs);
                 }
                 ClientControlPacket::KeepAlive
-                | ClientControlPacket::Buttons(_)
                 | ClientControlPacket::Battery(_)
                 | ClientControlPacket::ViewsConfig(_)
                 | ClientControlPacket::PlayspaceSync(_)
