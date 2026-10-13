@@ -575,7 +575,7 @@ fi
 
 if [[ "$VERANTYX_BENCH" == "1" ]]; then
     echo "VERANTYX_BENCH=1: not waiting for the Vision Pro app; the driver supplies synthetic poses."
-elif [[ "${WAIT_FOR_VISION_PRO_TRACKING:-1}" == "1" ]]; then
+elif [[ "${WAIT_FOR_VISION_PRO_TRACKING:-1}" == "1" && "${VERANTYX_TRANSPORT:-visionpro}" != "alvr" ]]; then
     VISION_TRACKING_TIMEOUT="${VISION_TRACKING_TIMEOUT:-1200}"
     echo "Waiting for the Vision Pro app to send its first tracked pose before launching $APP_NAME."
     pose_ready=0
