@@ -2,12 +2,38 @@
 set -euo pipefail
 
 VERANTYX_VR_DRIVE="${VERANTYX_VR_DRIVE:-$HOME/Verantyx_VR_Drive}"
-WINEPREFIX="${WINEPREFIX:-$VERANTYX_VR_DRIVE/SteamVR_Prefix_Wine11_Test}"
+if [[ -n "${CROSSOVER_BOTTLE:-}" ]]; then
+    WINEPREFIX="${WINEPREFIX:-$HOME/Library/Application Support/CrossOver/Bottles/$CROSSOVER_BOTTLE}"
+else
+    WINEPREFIX="${WINEPREFIX:-$VERANTYX_VR_DRIVE/SteamVR_Prefix_Wine11_Test}"
+fi
 WINE_RUNTIME_BIN="${WINE_RUNTIME_BIN:-$VERANTYX_VR_DRIVE/Beer/wine/WineStaging.app/Contents/Resources/wine/bin/wine}"
 GPTK_ROOT="${GPTK_ROOT:-$VERANTYX_VR_DRIVE/gptk_wine_local}"
 WINE_WRAPPER="${WINE_WRAPPER:-$VERANTYX_VR_DRIVE/wine_wrapper}"
 
 export WINEPREFIX
+
+# CrossOver mode uses CodeWeavers' supported --bottle/--cx-app interface.
+# Keep its runner separate from the project's Wine 11 environment overrides.
+if [[ -n "${CROSSOVER_BOTTLE:-}" ]]; then
+    CROSSOVER_WINE_BIN="${CROSSOVER_WINE_BIN:-/Applications/CrossOver.app/Contents/SharedSupport/CrossOver/bin/wine}"
+    if [[ ! -x "$CROSSOVER_WINE_BIN" ]]; then
+        echo "CrossOver's wine launcher was not found: $CROSSOVER_WINE_BIN" >&2
+        echo "Set CROSSOVER_WINE_BIN to CrossOver.app/Contents/SharedSupport/CrossOver/bin/wine." >&2
+        exit 1
+    fi
+    if (($# == 0)); then
+        echo "CrossOver mode needs a Windows executable to launch." >&2
+        exit 2
+    fi
+    crossover_app="$1"
+    case "$crossover_app" in
+        reg) crossover_app="reg.exe" ;;
+        wineboot) crossover_app="wineboot.exe" ;;
+    esac
+    exec "$CROSSOVER_WINE_BIN" --bottle "$CROSSOVER_BOTTLE" --cx-app "$crossover_app" "${@:2}"
+fi
+
 export WINEDEBUG="${WINEDEBUG:--all,err+all}"
 export WINEESYNC=1
 export WINEDLLOVERRIDES="dxgi,d3d9,d3d10core,d3d11=n,b;${WINEDLLOVERRIDES:-}"
