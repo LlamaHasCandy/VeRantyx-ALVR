@@ -10,8 +10,9 @@ STEAMVR_BIN="$WINEPREFIX/drive_c/Program Files (x86)/Steam/steamapps/common/Stea
 TARGET_DLL="$STEAMVR_BIN/d3d11.dll"
 BACKUP_DIR="$STEAMVR_BIN/.verantyx-originals"
 
-if [[ "$(basename "$WINEPREFIX")" != SteamVR_Prefix_*_Test ]]; then
-    echo "Refusing to install into a non-test prefix: $WINEPREFIX" >&2
+if [[ "$(basename "$WINEPREFIX")" != SteamVR_Prefix_*_Test ]] && \
+   [[ -z "${CROSSOVER_BOTTLE:-}" || ! -d "$WINEPREFIX/drive_c" ]]; then
+    echo "Refusing to modify a non-test prefix or selected CrossOver bottle: $WINEPREFIX" >&2
     echo "This compatibility proxy is experimental and restricted to the test clone." >&2
     exit 1
 fi
