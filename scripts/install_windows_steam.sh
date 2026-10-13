@@ -4,7 +4,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 VERANTYX_VR_DRIVE="${VERANTYX_VR_DRIVE:-$HOME/Verantyx_VR_Drive}"
-WINEPREFIX="${WINEPREFIX:-$VERANTYX_VR_DRIVE/SteamVR_Prefix}"
+if [[ -n "${CROSSOVER_BOTTLE:-}" ]]; then
+    WINEPREFIX="${WINEPREFIX:-$HOME/Library/Application Support/CrossOver/Bottles/$CROSSOVER_BOTTLE}"
+else
+    WINEPREFIX="${WINEPREFIX:-$VERANTYX_VR_DRIVE/SteamVR_Prefix}"
+fi
 WINE_BIN="${WINE_BIN:-$REPO_ROOT/VRDriver/wine_launcher.sh}"
 STEAM_SETUP_EXE="${STEAM_SETUP_EXE:-$VERANTYX_VR_DRIVE/SteamSetup.exe}"
 STEAM_ROOT="$WINEPREFIX/drive_c/Program Files (x86)/steam"
