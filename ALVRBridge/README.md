@@ -53,3 +53,34 @@ The ALVR branch targets ALVR 20.14.1's Quest protocol and default ports. A proto
 - ALVR v20.14.1 is pinned because the existing Quest client must match the bridge protocol. This does not claim compatibility with ALVR nightly/21.x clients.
 
 This is an initial integration, not a finished replacement for ALVR. Next steps are compile fixes (if any), on-Mac packet testing, validating stereo layout and poses in SteamVR, then adding audio and haptics streams.
+
+## CrossOver bottles (experimental)
+
+The ALVR bridge and HEVC encoder remain native macOS processes. The existing
+OpenVR capture proxy and SteamVR driver are installed into the Windows bottle;
+no ALVR DLL is injected into SteamVR. CrossOver mode is experimental and has
+not been validated with a live headset.
+
+1. In CrossOver, create a 64-bit Windows bottle and install Windows Steam into
+   it. Install SteamVR and a compatible SteamVR title into the same bottle.
+   Do not run `scripts/setup.sh`; that script creates the project's Wine 11
+   prefix instead.
+2. Find the bottle name in CrossOver. The default private bottle location is
+   `~/Library/Application Support/CrossOver/Bottles/<bottle-name>`.
+3. From the repository root, launch with the bottle name and your Quest IP:
+
+```bash
+CROSSOVER_BOTTLE="Your Bottle Name" \
+CROSSOVER_WINE_BIN="/Applications/CrossOver.app/Contents/SharedSupport/CrossOver/bin/wine" \
+ALVR_CLIENT_IP=192.168.1.123 \
+VERANTYX_TRANSPORT=alvr \
+WAIT_FOR_VISION_PRO_TRACKING=0 \
+bash scripts/launch_vision_pro_vr.sh
+```
+
+If CrossOver is installed outside `/Applications`, set
+`CROSSOVER_WINE_BIN` to its `Contents/SharedSupport/CrossOver/bin/wine`.
+Set `WINEPREFIX` explicitly if the bottle is stored in a custom location.
+The launcher uses CodeWeavers' `wine --bottle <name> --cx-app <executable>`
+command interface through `VRDriver/wine_launcher.sh`.
+
