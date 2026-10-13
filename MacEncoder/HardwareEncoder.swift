@@ -1094,10 +1094,10 @@ if ProcessInfo.processInfo.environment["VERANTYX_TRANSPORT"] == "alvr" {
                     }
     
                     // Analog controls and button masks.
-                    handsMapPtr.advanced(by: 194).storeBytes(of: buffer[252], as: UInt8.self) // left trigger
-                    handsMapPtr.advanced(by: 195).storeBytes(of: buffer[253], as: UInt8.self) // right trigger
-                    handsMapPtr.advanced(by: 284).storeBytes(of: buffer[254], as: UInt8.self) // left grip
-                    handsMapPtr.advanced(by: 285).storeBytes(of: buffer[255], as: UInt8.self) // right grip
+                    handsMapPtr.advanced(by: 194).storeBytes(of: rawBuffer.load(fromByteOffset: 252, as: UInt8.self), as: UInt8.self) // left trigger
+                    handsMapPtr.advanced(by: 195).storeBytes(of: rawBuffer.load(fromByteOffset: 253, as: UInt8.self), as: UInt8.self) // right trigger
+                    handsMapPtr.advanced(by: 284).storeBytes(of: rawBuffer.load(fromByteOffset: 254, as: UInt8.self), as: UInt8.self) // left grip
+                    handsMapPtr.advanced(by: 285).storeBytes(of: rawBuffer.load(fromByteOffset: 255, as: UInt8.self), as: UInt8.self) // right grip
                     handsMapPtr.advanced(by: 196).storeBytes(of: qtrkReadU32(base, 256), as: UInt32.self) // right buttons
                     handsMapPtr.advanced(by: 200).storeBytes(of: qtrkReadU32(base, 260), as: UInt32.self) // left buttons
                     handsMapPtr.advanced(by: 204).storeBytes(of: qtrkReadFloat(base, 264), as: Float.self) // right stick X
@@ -1105,10 +1105,10 @@ if ProcessInfo.processInfo.environment["VERANTYX_TRANSPORT"] == "alvr" {
                     handsMapPtr.advanced(by: 212).storeBytes(of: qtrkReadFloat(base, 272), as: Float.self) // left stick X
                     handsMapPtr.advanced(by: 216).storeBytes(of: qtrkReadFloat(base, 276), as: Float.self) // left stick Y
     
-                    handsMapPtr.advanced(by: 286).storeBytes(of: buffer[280], as: UInt8.self) // head tracked
-                    handsMapPtr.advanced(by: 192).storeBytes(of: buffer[281], as: UInt8.self) // left tracked
-                    handsMapPtr.advanced(by: 193).storeBytes(of: buffer[282], as: UInt8.self) // right tracked
-                    handsMapPtr.advanced(by: 311).storeBytes(of: buffer[283], as: UInt8.self) // velocity valid
+                    handsMapPtr.advanced(by: 286).storeBytes(of: rawBuffer.load(fromByteOffset: 280, as: UInt8.self), as: UInt8.self) // head tracked
+                    handsMapPtr.advanced(by: 192).storeBytes(of: rawBuffer.load(fromByteOffset: 281, as: UInt8.self), as: UInt8.self) // left tracked
+                    handsMapPtr.advanced(by: 193).storeBytes(of: rawBuffer.load(fromByteOffset: 282, as: UInt8.self), as: UInt8.self) // right tracked
+                    handsMapPtr.advanced(by: 311).storeBytes(of: rawBuffer.load(fromByteOffset: 283, as: UInt8.self), as: UInt8.self) // velocity valid
                     handsMapPtr.advanced(by: 244).storeBytes(of: timestamp, as: Double.self)
                 }
             }
