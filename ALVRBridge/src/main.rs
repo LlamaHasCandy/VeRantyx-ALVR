@@ -455,6 +455,8 @@ fn configure_alvr_session(args: &Args) -> Result<SessionConfig> {
     json["session_settings"]["video"]["preferred_fps"] = serde_json::json!(args.fps);
     json["session_settings"]["connection"]["stream_protocol"] = serde_json::json!("Udp");
     json["session_settings"]["connection"]["stream_port"] = serde_json::json!(args.stream_port);
+    // The bridge does not send game-audio packets yet, so keep the Quest audio receiver disabled.
+    json["session_settings"]["audio"]["game_audio"]["enabled"] = serde_json::json!(false);
     session.merge_from_json(&json)?;
 
     session.openvr_config.eye_resolution_width = args.eye_width;
