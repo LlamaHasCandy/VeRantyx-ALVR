@@ -23,7 +23,7 @@ VRSTARTUP_WINE_APP="$VRSTARTUP_EXE"
 if [[ -n "${CROSSOVER_BOTTLE:-}" ]]; then
     vrstartup_relative="${VRSTARTUP_EXE#"$WINEPREFIX/drive_c/"}"
     if [[ "$vrstartup_relative" != "$VRSTARTUP_EXE" ]]; then
-        VRSTARTUP_WINE_APP="C:\\$(printf '%s' "$vrstartup_relative" | sed 's|/|\\\\|g')"
+        VRSTARTUP_WINE_APP="C:\\$(printf '%s' "$vrstartup_relative" | sed 's|/|\\|g')"
     fi
 fi
 # VERANTYX_APP picks the SteamVR title: alyx (default), earth (Google Earth VR),
