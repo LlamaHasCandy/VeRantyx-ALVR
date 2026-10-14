@@ -19,6 +19,13 @@ STEAM_ROOT="${STEAM_ROOT:-$WINEPREFIX/drive_c/Program Files (x86)/Steam}"
 STEAM_EXE="${STEAM_EXE:-$STEAM_ROOT/steam.exe}"
 STEAMVR_DIR="${STEAMVR_DIR:-$STEAM_ROOT/steamapps/common/SteamVR}"
 VRSTARTUP_EXE="${VRSTARTUP_EXE:-$STEAMVR_DIR/bin/win64/vrstartup.exe}"
+VRSTARTUP_WINE_APP="$VRSTARTUP_EXE"
+if [[ -n "${CROSSOVER_BOTTLE:-}" ]]; then
+    vrstartup_relative="${VRSTARTUP_EXE#"$WINEPREFIX/drive_c/"}"
+    if [[ "$vrstartup_relative" != "$VRSTARTUP_EXE" ]]; then
+        VRSTARTUP_WINE_APP="C:\\$(printf '%s' "$vrstartup_relative" | sed 's|/|\\\\|g')"
+    fi
+fi
 # VERANTYX_APP picks the SteamVR title: alyx (default), earth (Google Earth VR),
 # or a Steam app ID with VERANTYX_APP_EXE set to its .exe inside the prefix.
 # Only Alyx gets the Alyx-specific steps (launch options, fidelity, dxvk.conf).
@@ -517,7 +524,7 @@ else
         cp -p "$VR_COMPOSITOR_LOG" "$LOG_DIR/vrcompositor-before-dxvk-$STEAMVR_START_EPOCH.txt"
         : > "$VR_COMPOSITOR_LOG"
     fi
-    "$WINE_BIN" "$VRSTARTUP_EXE" >"$LOG_DIR/steamvr-launch.log" 2>&1 &
+    "$WINE_BIN" "$VRSTARTUP_WINE_APP" >"$LOG_DIR/steamvr-launch.log" 2>&1 &
 fi
 
 for ((elapsed = 0; elapsed < STARTUP_TIMEOUT; elapsed++)); do
@@ -602,7 +609,7 @@ elif [[ "${WAIT_FOR_VISION_PRO_TRACKING:-1}" == "1" && "${VERANTYX_TRANSPORT:-vi
                     cp -p "$VR_COMPOSITOR_LOG" "$LOG_DIR/vrcompositor-before-restart-$STEAMVR_START_EPOCH.txt"
                     : > "$VR_COMPOSITOR_LOG"
                 fi
-                "$WINE_BIN" "$VRSTARTUP_EXE" >>"$LOG_DIR/steamvr-launch.log" 2>&1 &
+                "$WINE_BIN" "$VRSTARTUP_WINE_APP" >>"$LOG_DIR/steamvr-launch.log" 2>&1 &
                 steamvr_restart_started=1
             fi
             echo "Waiting for Vision Pro tracking (${elapsed}s/${VISION_TRACKING_TIMEOUT}s)…"
