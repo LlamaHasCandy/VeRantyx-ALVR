@@ -543,7 +543,7 @@ fn run(args: Args) -> Result<()> {
 
     proto_socket.send(&stream_config)?;
     let (mut control_sender, mut control_receiver) =
-        proto_socket.split(Duration::from_millis(5))?;
+        proto_socket.split(Duration::from_millis(500))?;
     control_sender.send(&ServerControlPacket::StartStream)?;
 
     let stream_ready = control_receiver
