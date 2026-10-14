@@ -31,7 +31,14 @@ if [[ -n "${CROSSOVER_BOTTLE:-}" ]]; then
         reg) crossover_app="reg.exe" ;;
         wineboot) crossover_app="wineboot.exe" ;;
     esac
-    exec "$CROSSOVER_WINE_BIN" --bottle "$CROSSOVER_BOTTLE" --cx-app "$crossover_app" "${@:2}"
+    if [[ "$crossover_app" == "$WINEPREFIX/drive_c/"* ]]; then
+        crossover_relative="${crossover_app#"$WINEPREFIX/drive_c/"}"
+        crossover_app="C:\\$(printf '%s' "$crossover_relative" | sed 's|/|\\|g')"
+    fi
+    crossover_options=(--bottle "$CROSSOVER_BOTTLE" --cx-app "$crossover_app")
+    [[ -z "${WINEDLLOVERRIDES:-}" ]] || crossover_options+=(--dll "$WINEDLLOVERRIDES")
+    [[ -z "${WINEDEBUG:-}" ]] || crossover_options+=(--debugmsg "$WINEDEBUG")
+    exec "$CROSSOVER_WINE_BIN" "${crossover_options[@]}" "${@:2}"
 fi
 
 export WINEDEBUG="${WINEDEBUG:--all,err+all}"
