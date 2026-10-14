@@ -544,7 +544,10 @@ fn run(args: Args) -> Result<()> {
         proto_socket.split(Duration::from_millis(5))?;
     control_sender.send(&ServerControlPacket::StartStream)?;
 
-    match control_receiver.recv(Duration::from_secs(3)).map_err(|error| anyhow::anyhow!("waiting for Quest StreamReady: {error}"))? {
+    let stream_ready = control_receiver
+        .recv(Duration::from_secs(15))
+        .map_err(|error| anyhow::anyhow!("waiting 15 seconds for Quest StreamReady after StartStream: {error}"))?;
+    match stream_ready {
         ClientControlPacket::StreamReady => println!("ALVR: Quest stream socket is ready."),
         _ => bail!("Quest sent an unexpected packet instead of StreamReady"),
     }
