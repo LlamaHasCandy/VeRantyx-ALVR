@@ -152,6 +152,7 @@ for prefix in "${WINE_PREFIX_CANDIDATES[@]:-}"; do
     prefix_label="$(basename "$prefix" | tr -cs '[:alnum:]_.-' '_')"
     copy_file "$prefix/drive_c/vr_shared_frame.log" "wine-prefix/$prefix_label-vr_shared_frame.log"
     copy_file "$prefix/drive_c/vr_openvr_capture_proxy.log" "wine-prefix/$prefix_label-vr_openvr_capture_proxy.log"
+    copy_file "$prefix/drive_c/d3d11_proxy_log.txt" "wine-prefix/$prefix_label-d3d11_proxy_log.txt"
     copy_glob "wine-prefix/$prefix_label" "$prefix/drive_c/"*verantyx*.log
 done
 
