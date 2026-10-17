@@ -729,6 +729,7 @@ static bool CaptureRequestedTexture(
     }
     ProxyReadbackSlot& slot = g_proxyReadbackRing[g_proxyReadbackIndex];
     bool publishedFrame = false;
+    uint8_t diagnosticPixels[9][4] = {};
     if (slot.pending) {
         D3D11_MAPPED_SUBRESOURCE mapped = {};
         result = context->Map(slot.texture, 0, D3D11_MAP_READ, D3D11_MAP_FLAG_DO_NOT_WAIT, &mapped);
@@ -763,6 +764,20 @@ static bool CaptureRequestedTexture(
         uint8_t* destination = frameBlock + sizeof(ProxySharedFrame);
         const size_t rowBytes = static_cast<size_t>(sourceDesc.Width) * 4;
         const uint8_t* source = static_cast<const uint8_t*>(mapped.pData);
+        const uint32_t sampleX[9] = {
+            sourceDesc.Width / 4, sourceDesc.Width / 2, (sourceDesc.Width * 3) / 4,
+            sourceDesc.Width / 4, sourceDesc.Width / 2, (sourceDesc.Width * 3) / 4,
+            sourceDesc.Width / 4, sourceDesc.Width / 2, (sourceDesc.Width * 3) / 4
+        };
+        const uint32_t sampleY[9] = {
+            sourceDesc.Height / 4, sourceDesc.Height / 4, sourceDesc.Height / 4,
+            sourceDesc.Height / 2, sourceDesc.Height / 2, sourceDesc.Height / 2,
+            (sourceDesc.Height * 3) / 4, (sourceDesc.Height * 3) / 4, (sourceDesc.Height * 3) / 4
+        };
+        for (uint32_t i = 0; i < 9; ++i) {
+            memcpy(diagnosticPixels[i],
+                source + static_cast<size_t>(sampleY[i]) * mapped.RowPitch + static_cast<size_t>(sampleX[i]) * 4, 4);
+        }
         for (uint32_t row = 0; row < sourceDesc.Height; ++row) {
             memcpy(destination + static_cast<size_t>(row) * rowBytes,
                 source + static_cast<size_t>(row) * mapped.RowPitch, rowBytes);
@@ -801,11 +816,20 @@ static bool CaptureRequestedTexture(
     }
 
     if (publishedFrame && *frameSequence % 90 == 1) {
-        char message[192];
+        char message[640];
         snprintf(message, sizeof(message),
-            "[Verantyx] Compositor copied frame %u (%ux%u) via asynchronous readback handle 0x%08lx pid=%lu",
-            *frameSequence, sourceDesc.Width, sourceDesc.Height,
+            "[Verantyx] Compositor source samples frame=%u size=%ux%u fmt=%u handle=0x%08lx p1=%u,%u,%u,%u p2=%u,%u,%u,%u p3=%u,%u,%u,%u p4=%u,%u,%u,%u p5=%u,%u,%u,%u p6=%u,%u,%u,%u p7=%u,%u,%u,%u p8=%u,%u,%u,%u p9=%u,%u,%u,%u pid=%lu",
+            *frameSequence, sourceDesc.Width, sourceDesc.Height, (unsigned)sourceDesc.Format,
             (unsigned long)static_cast<uint32_t>(handleValue),
+            diagnosticPixels[0][0], diagnosticPixels[0][1], diagnosticPixels[0][2], diagnosticPixels[0][3],
+            diagnosticPixels[1][0], diagnosticPixels[1][1], diagnosticPixels[1][2], diagnosticPixels[1][3],
+            diagnosticPixels[2][0], diagnosticPixels[2][1], diagnosticPixels[2][2], diagnosticPixels[2][3],
+            diagnosticPixels[3][0], diagnosticPixels[3][1], diagnosticPixels[3][2], diagnosticPixels[3][3],
+            diagnosticPixels[4][0], diagnosticPixels[4][1], diagnosticPixels[4][2], diagnosticPixels[4][3],
+            diagnosticPixels[5][0], diagnosticPixels[5][1], diagnosticPixels[5][2], diagnosticPixels[5][3],
+            diagnosticPixels[6][0], diagnosticPixels[6][1], diagnosticPixels[6][2], diagnosticPixels[6][3],
+            diagnosticPixels[7][0], diagnosticPixels[7][1], diagnosticPixels[7][2], diagnosticPixels[7][3],
+            diagnosticPixels[8][0], diagnosticPixels[8][1], diagnosticPixels[8][2], diagnosticPixels[8][3],
             (unsigned long)GetCurrentProcessId());
         LogProxyCapture(message);
     }
