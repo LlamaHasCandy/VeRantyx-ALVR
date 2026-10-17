@@ -43,6 +43,8 @@ if [[ -z "${STEAM_ROOT:-}" ]]; then
             done
             if (( candidate_epoch > best_log_epoch )); then
                 STEAM_ROOT="$candidate"
+                # The bottle root is the directory immediately above drive_c.
+                WINEPREFIX="${candidate%/drive_c/Program Files (x86)/Steam}"
                 best_log_epoch="$candidate_epoch"
             fi
         done
