@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-set -euo pipefail
+# Use nounset-free mode for compatibility with the Bash 3.2 shipped with macOS.
+set -eo pipefail
 
 # Collect only diagnostic logs and basic runtime details for VeRantyx/ALVR.
 # Deliberately excludes Steam credentials, account configuration, and full env dumps.
@@ -7,6 +8,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
+COLLECTOR_VERSION="2026-10-16-bash32-fix"
 OUTPUT_BASE="${TMPDIR:-/tmp}"
 OUTPUT_DIR="$OUTPUT_BASE/Verantyx-diagnostics-$TIMESTAMP"
 ARCHIVE="$OUTPUT_DIR.zip"
@@ -74,6 +76,7 @@ copy_glob() {
 }
 
 {
+    printf 'Collector version: %s\n' "$COLLECTOR_VERSION"
     printf 'Collected at: %s\n' "$(date)"
     printf 'Repository: %s\n' "$REPO_ROOT"
     printf 'Current branch/commit (when available):\n'
