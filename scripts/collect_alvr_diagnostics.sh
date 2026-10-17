@@ -38,11 +38,11 @@ copy_glob() {
     shift
     local pattern file
     for pattern in "$@"; do
-        # The pattern is expanded by Bash; unmatched patterns are skipped.
-        for file in $pattern; do
+        # compgen expands a glob without word-splitting paths that contain spaces.
+        while IFS= read -r file; do
             [[ -f "$file" ]] || continue
             copy_file "$file" "$destination_dir/$(basename "$file")"
-        done
+        done < <(compgen -G "$pattern" || true)
     done
 }
 
