@@ -28,7 +28,7 @@ WINE_PREFIX_CANDIDATES=()
 add_prefix_candidate() {
     local candidate="${1%/}" existing
     [[ -d "$candidate/drive_c" ]] || return 0
-    for existing in "${WINE_PREFIX_CANDIDATES[@]}"; do
+    for existing in "${WINE_PREFIX_CANDIDATES[@]:-}"; do
         [[ "$existing" == "$candidate" ]] && return 0
     done
     WINE_PREFIX_CANDIDATES+=("$candidate")
@@ -90,7 +90,7 @@ copy_glob() {
     printf 'LOG_DIR=%s\n' "$LOG_DIR"
     printf 'DXVK_LOG_DIR=%s\n' "$DXVK_LOG_DIR"
     printf 'Candidate Wine/CrossOver prefixes:\n'
-    for candidate in "${WINE_PREFIX_CANDIDATES[@]}"; do printf '  %s\n' "$candidate"; done
+    for candidate in "${WINE_PREFIX_CANDIDATES[@]:-}"; do printf '  %s\n' "$candidate"; done
     printf 'STEAM_ROOT=%s\n' "$STEAM_ROOT"
     printf 'STEAM_LOG_DIR=%s\n' "$STEAM_LOG_DIR"
     printf 'LOG_DIR=%s\n' "$LOG_DIR"
@@ -120,13 +120,13 @@ STEAM_ROOTS=()
 add_steam_root() {
     local root="${1%/}" existing
     [[ -d "$root/logs" ]] || return 0
-    for existing in "${STEAM_ROOTS[@]}"; do
+    for existing in "${STEAM_ROOTS[@]:-}"; do
         [[ "$existing" == "$root" ]] && return 0
     done
     STEAM_ROOTS+=("$root")
 }
 add_steam_root "$STEAM_ROOT"
-for prefix in "${WINE_PREFIX_CANDIDATES[@]}"; do
+for prefix in "${WINE_PREFIX_CANDIDATES[@]:-}"; do
     add_steam_root "$prefix/drive_c/Program Files (x86)/Steam"
     add_steam_root "$prefix/drive_c/Program Files/Steam"
 done
@@ -145,7 +145,7 @@ copy_glob dxvk "$DXVK_LOG_DIR/vrcompositor*.log" "$DXVK_LOG_DIR/vrserver*.log"
 copy_glob dxvk "$VERANTYX_VR_DRIVE/logs/dxvk/vrcompositor*.log" "$VERANTYX_VR_DRIVE/logs/dxvk/vrserver*.log"
 
 # Driver and capture-proxy logs from all detected prefixes.
-for prefix in "${WINE_PREFIX_CANDIDATES[@]}"; do
+for prefix in "${WINE_PREFIX_CANDIDATES[@]:-}"; do
     prefix_label="$(basename "$prefix" | tr -cs '[:alnum:]_.-' '_')"
     copy_file "$prefix/drive_c/vr_shared_frame.log" "wine-prefix/$prefix_label-vr_shared_frame.log"
     copy_file "$prefix/drive_c/vr_openvr_capture_proxy.log" "wine-prefix/$prefix_label-vr_openvr_capture_proxy.log"
