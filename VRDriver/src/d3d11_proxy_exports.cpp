@@ -1292,10 +1292,10 @@ extern "C" __declspec(dllexport) HRESULT WINAPI D3D11CreateDeviceAndSwapChain(
             hr = pOrig(pAdapter, DriverType, Software, Flags, pFeatureLevels, FeatureLevels,
                 SDKVersion, &compatibleDesc, &createdSwapChain, &pOrigDevice, pFeatureLevel, contextOutput);
 
-            FILE* logFile = fopen("C:\\d3d11_proxy_log.txt", "a");
-            if (logFile) {
-                fprintf(logFile, "[Verantyx] Compatible swap-chain retry result hr=0x%08X\n", (unsigned int)hr);
-                fclose(logFile);
+            FILE* retryLogFile = fopen("C:\\d3d11_proxy_log.txt", "a");
+            if (retryLogFile) {
+                fprintf(retryLogFile, "[Verantyx] Compatible swap-chain retry result hr=0x%08X\n", (unsigned int)hr);
+                fclose(retryLogFile);
             }
         }
     }
