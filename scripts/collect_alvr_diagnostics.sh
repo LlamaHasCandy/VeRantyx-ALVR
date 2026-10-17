@@ -17,7 +17,37 @@ if [[ -n "${CROSSOVER_BOTTLE:-}" ]]; then
 else
     WINEPREFIX="${WINEPREFIX:-$VERANTYX_VR_DRIVE/SteamVR_Prefix_Wine11_Test}"
 fi
-STEAM_ROOT="${STEAM_ROOT:-$WINEPREFIX/drive_c/Program Files (x86)/Steam}"
+# If STEAM_ROOT is not explicitly configured, prefer the prefix with the
+# newest SteamVR/compositor logs. This avoids silently collecting an old Wine
+# prefix when Steam is actually running from a CrossOver bottle.
+if [[ -z "${STEAM_ROOT:-}" ]]; then
+    STEAM_ROOT="$WINEPREFIX/drive_c/Program Files (x86)/Steam"
+    best_log_epoch=0
+    if [[ -d "$STEAM_ROOT/logs" ]]; then
+        for log in "$STEAM_ROOT/logs/vrcompositor.txt" "$STEAM_ROOT/logs/vrserver.txt" "$STEAM_ROOT/logs/console_log.txt"; do
+            [[ -f "$log" ]] || continue
+            epoch="$(stat -f %m "$log" 2>/dev/null || echo 0)"
+            (( epoch > best_log_epoch )) && best_log_epoch="$epoch"
+        done
+    fi
+
+    CROSSOVER_BOTTLES="$HOME/Library/Application Support/CrossOver/Bottles"
+    if [[ -d "$CROSSOVER_BOTTLES" ]]; then
+        for candidate in "$CROSSOVER_BOTTLES"/*/drive_c/Program\ Files\ \(x86\)/Steam; do
+            [[ -d "$candidate/logs" ]] || continue
+            candidate_epoch=0
+            for log in "$candidate/logs/vrcompositor.txt" "$candidate/logs/vrserver.txt" "$candidate/logs/console_log.txt"; do
+                [[ -f "$log" ]] || continue
+                epoch="$(stat -f %m "$log" 2>/dev/null || echo 0)"
+                (( epoch > candidate_epoch )) && candidate_epoch="$epoch"
+            done
+            if (( candidate_epoch > best_log_epoch )); then
+                STEAM_ROOT="$candidate"
+                best_log_epoch="$candidate_epoch"
+            fi
+        done
+    fi
+fi
 STEAM_LOG_DIR="$STEAM_ROOT/logs"
 LOG_DIR="${LOG_DIR:-$REPO_ROOT/logs}"
 DXVK_LOG_DIR="${DXVK_LOG_DIR:-$LOG_DIR/dxvk}"
@@ -58,6 +88,10 @@ copy_glob() {
     printf 'VERANTYX_USE_DXVK=%s\n' "${VERANTYX_USE_DXVK:-unset}"
     printf 'CROSSOVER_BOTTLE=%s\n' "${CROSSOVER_BOTTLE:-unset}"
     printf 'WINEPREFIX=%s\n' "$WINEPREFIX"
+    printf 'STEAM_ROOT=%s\n' "$STEAM_ROOT"
+    printf 'STEAM_LOG_DIR=%s\n' "$STEAM_LOG_DIR"
+    printf 'LOG_DIR=%s\n' "$LOG_DIR"
+    printf 'DXVK_LOG_DIR=%s\n' "$DXVK_LOG_DIR"
     printf '\nWorking tree status:\n'
     git -C "$REPO_ROOT" status --short 2>/dev/null || true
 } > "$OUTPUT_DIR/system/collection-info.txt" 2>&1
