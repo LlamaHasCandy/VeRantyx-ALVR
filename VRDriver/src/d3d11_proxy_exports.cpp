@@ -1225,23 +1225,115 @@ extern "C" __declspec(dllexport) HRESULT WINAPI D3D11CreateDeviceAndSwapChain(
     } }
 
     ID3D11Device* pOrigDevice = NULL;
-    HRESULT hr = pOrig(pAdapter, DriverType, Software, Flags, pFeatureLevels, FeatureLevels, SDKVersion, pSwapChainDesc, ppSwapChain, &pOrigDevice, pFeatureLevel, ppImmediateContext);
-    
-    if (FAILED(hr)) {
-        if(f) { f = fopen("C:\\d3d11_proxy_log.txt", "a"); if(f){fprintf(f, "[Verantyx] SwapChain device creation still failed with hr=%08X\n", hr); fclose(f);} }
+    IDXGISwapChain* createdSwapChain = NULL;
+    ID3D11DeviceContext* createdImmediateContext = NULL;
+    ID3D11DeviceContext** contextOutput = ppImmediateContext ? &createdImmediateContext : NULL;
+
+    if (pSwapChainDesc) {
+        FILE* logFile = fopen("C:\\d3d11_proxy_log.txt", "a");
+        if (logFile) {
+            fprintf(logFile,
+                "[Verantyx] SwapChain request: %ux%u format=%u samples=%u quality=%u usage=0x%08X flags=0x%08X effect=%u\n",
+                pSwapChainDesc->BufferDesc.Width,
+                pSwapChainDesc->BufferDesc.Height,
+                pSwapChainDesc->BufferDesc.Format,
+                pSwapChainDesc->SampleDesc.Count,
+                pSwapChainDesc->SampleDesc.Quality,
+                pSwapChainDesc->BufferUsage,
+                pSwapChainDesc->Flags,
+                pSwapChainDesc->SwapEffect);
+            fclose(logFile);
+        }
     }
+
+    HRESULT hr = pOrig(pAdapter, DriverType, Software, Flags, pFeatureLevels, FeatureLevels,
+        SDKVersion, pSwapChainDesc, &createdSwapChain, &pOrigDevice, pFeatureLevel, contextOutput);
+
+    if (FAILED(hr) && pSwapChainDesc) {
+        DXGI_SWAP_CHAIN_DESC compatibleDesc = *pSwapChainDesc;
+        bool adjusted = false;
+
+        // Format 27 is DXGI_FORMAT_R8G8B8A8_TYPELESS. A swap-chain
+        // back buffer needs a concrete color format on supported presentation
+        // paths; R8G8B8A8_UNORM is the conservative four-channel fallback.
+        if (compatibleDesc.BufferDesc.Format == DXGI_FORMAT_R8G8B8A8_TYPELESS) {
+            compatibleDesc.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+            adjusted = true;
+        }
+
+        // Some Wine/DXVK combinations fail swap-chain creation for an
+        // unsupported MSAA count. Only change it after the original request
+        // actually fails, preserving the native request whenever possible.
+        if (compatibleDesc.SampleDesc.Count == 0 || compatibleDesc.SampleDesc.Count > 1) {
+            compatibleDesc.SampleDesc.Count = 1;
+            compatibleDesc.SampleDesc.Quality = 0;
+            adjusted = true;
+        } else if (compatibleDesc.SampleDesc.Quality != 0) {
+            compatibleDesc.SampleDesc.Quality = 0;
+            adjusted = true;
+        }
+
+        if (adjusted) {
+            FILE* logFile = fopen("C:\\d3d11_proxy_log.txt", "a");
+            if (logFile) {
+                fprintf(logFile,
+                    "[Verantyx] Original swap-chain creation failed hr=0x%08X; retrying with format=%u samples=%u quality=%u\n",
+                    (unsigned int)hr,
+                    compatibleDesc.BufferDesc.Format,
+                    compatibleDesc.SampleDesc.Count,
+                    compatibleDesc.SampleDesc.Quality);
+                fclose(logFile);
+            }
+
+            if (createdSwapChain) { createdSwapChain->Release(); createdSwapChain = NULL; }
+            if (createdImmediateContext) { createdImmediateContext->Release(); createdImmediateContext = NULL; }
+            if (pOrigDevice) { pOrigDevice->Release(); pOrigDevice = NULL; }
+
+            hr = pOrig(pAdapter, DriverType, Software, Flags, pFeatureLevels, FeatureLevels,
+                SDKVersion, &compatibleDesc, &createdSwapChain, &pOrigDevice, pFeatureLevel, contextOutput);
+
+            FILE* logFile = fopen("C:\\d3d11_proxy_log.txt", "a");
+            if (logFile) {
+                fprintf(logFile, "[Verantyx] Compatible swap-chain retry result hr=0x%08X\n", (unsigned int)hr);
+                fclose(logFile);
+            }
+        }
+    }
+
     if (SUCCEEDED(hr) && pOrigDevice) {
         SetupDeviceHooks(pOrigDevice);
         if (ppDevice) {
             *ppDevice = pOrigDevice;
-            if(f) { f = fopen("C:\\d3d11_proxy_log.txt", "a"); if(f){fprintf(f, "[Verantyx] Returned native ID3D11Device from SwapChain with resource hooks installed.\n"); fclose(f);} }
+            FILE* logFile = fopen("C:\\d3d11_proxy_log.txt", "a");
+            if (logFile) {
+                fprintf(logFile, "[Verantyx] Returned native ID3D11Device from SwapChain with resource hooks installed.\n");
+                fclose(logFile);
+            }
         } else {
             pOrigDevice->Release();
         }
-    } else if (ppDevice) {
-        *ppDevice = pOrigDevice;
-    } else if (pOrigDevice) {
-        pOrigDevice->Release();
+        if (ppSwapChain) {
+            *ppSwapChain = createdSwapChain;
+        } else if (createdSwapChain) {
+            createdSwapChain->Release();
+        }
+        if (ppImmediateContext) {
+            *ppImmediateContext = createdImmediateContext;
+        } else if (createdImmediateContext) {
+            createdImmediateContext->Release();
+        }
+    } else {
+        if (createdSwapChain) createdSwapChain->Release();
+        if (createdImmediateContext) createdImmediateContext->Release();
+        if (pOrigDevice) pOrigDevice->Release();
+        if (ppSwapChain) *ppSwapChain = NULL;
+        if (ppDevice) *ppDevice = NULL;
+        if (ppImmediateContext) *ppImmediateContext = NULL;
+        FILE* logFile = fopen("C:\\d3d11_proxy_log.txt", "a");
+        if (logFile) {
+            fprintf(logFile, "[Verantyx] SwapChain device creation failed after compatibility retry (or no retry applied): hr=0x%08X\n", (unsigned int)hr);
+            fclose(logFile);
+        }
     }
     return hr;
 }
